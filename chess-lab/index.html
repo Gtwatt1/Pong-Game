@@ -130,6 +130,26 @@
       .board-bottom{margin-top:9px}.actions{margin-top:10px}.callout{margin-top:11px;}
       .coach-short{max-width:65vw;overflow:hidden;text-overflow:ellipsis;}
     }
+
+    /* Board-first teaching: hide distractions and let the board dominate on mobile. */
+    .layout{display:flex!important;flex-direction:column;align-items:center;gap:12px;}
+    .main-board,.sidebar,.aside{width:min(100%,540px)!important;max-width:540px;grid-area:auto!important;}
+    .watch-mode .sidebar,.watch-mode .aside{display:none!important;}
+    .watch-mode footer{margin-top:18px;}
+    .watch-key .red{background:#e24a45;}
+    .watch-why-btn{display:block;width:100%;text-align:left;border:1px solid #deeadb;border-radius:10px;background:white;color:#304a35;padding:11px 12px;font-weight:650;line-height:1.4;font-size:12px;min-height:42px;}
+    .watch-why-btn:after{content:'  ⓘ';color:#688875;}
+    .watch-why-btn:hover{background:#f4f8f1;}
+    .watch-details{margin-top:8px;padding:11px 12px;background:#f3f7ef;border:1px solid #e0e9da;border-radius:10px;font-size:12px;line-height:1.45;color:#354c3e;}
+    .watch-details p{margin:0 0 8px;}
+    .watch-details p:last-child{margin-bottom:0;}
+    .watch-danger{color:#a02527;background:#fff3f0;border-color:#f1c1b8;}
+    .watch-replay-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+    .watch-replay-row button{flex:1 1 130px;white-space:normal;}
+    .watch-replay-note{font-weight:700;color:#8d2b25;margin-top:5px;font-size:12px;}
+    .watch-arrows{isolation:isolate;}
+    .watch-mode .board-top{margin-bottom:8px;}
+    @media(max-width:680px){.watch-analysis{padding:8px;}.watch-why-btn{font-size:12px;padding:9px;}.watch-replay-row button{font-size:12px;padding:9px;}}
   </style>
 </head>
 <body>
@@ -158,19 +178,6 @@
       </div>
       <div class="callout" aria-live="polite"><div class="callout-title" id="calloutTitle">Your first lesson</div><p class="callout-body" id="calloutBody"></p><div class="error" id="errorMessage" hidden></div></div>
     </section>
-    <section class="coach-panel panel" id="coachPanel" aria-label="Your chess tutor">
-      <div class="coach-head"><div class="coach-name"><span class="coach-icon" aria-hidden="true">♞</span> Your coach</div><span class="coach-status" id="coachMode">On-device guidance</span></div>
-      <p class="coach-sub">Ask about any move. I can see the board and the game history.</p>
-      <div class="chat-log" id="coachLog" role="log" aria-live="polite" aria-label="Conversation with chess tutor"></div>
-      <div class="chat-shortcuts" aria-label="Suggested questions">
-        <button class="chip" type="button" data-ask="What should I play next?">What next?</button>
-        <button class="chip" type="button" data-ask="Explain my last move">Explain my move</button>
-        <button class="chip" type="button" data-ask="Am I in danger?">Am I in danger?</button>
-        <button class="chip" type="button" data-ask="Explain castling">Castling?</button>
-      </div>
-      <form class="chat-form" id="coachForm"><label for="coachInput" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">Ask a chess question</label><textarea id="coachInput" rows="1" maxlength="1000" placeholder="Ask me anything about chess…" aria-label="Ask your chess coach"></textarea><button id="sendCoach" type="submit">Ask</button></form>
-      <div class="coach-actions"><button class="linklike" type="button" id="clearChat">Clear chat</button><span class="coach-note" id="coachHelp">Built-in guidance works without internet.</span></div>
-    </section>
     <aside class="aside">
       <div class="panel"><div class="section-header">Move history</div><div id="history" class="move-history"><span class="empty-moves">No moves yet. Take your first turn!</span></div><button class="btn" id="copyMovesBtn" style="margin-top:14px;width:100%">Export game moves</button></div>
       <div class="panel" style="margin-top:16px"><div class="section-header">Quick reference</div>
@@ -184,7 +191,7 @@
       </div>
     </aside>
   </section>
-  <footer>No account needed · Lessons and chat stay in your browser · AI mode is optional</footer>
+  <footer>No account needed · Games and lessons stay in your browser · Tap the board to learn</footer>
 </main>
 <div class="modal" id="promotionModal" hidden><div class="modal-card"><h2>Promote your pawn</h2><p>You've reached the other side! Choose your new piece.</p><div class="promotion-grid" id="promotionChoices"></div><button class="btn" id="cancelPromotion" style="margin-top:14px;width:100%">Cancel</button></div></div>
 <script>
@@ -317,10 +324,10 @@ const storeKey='chess-lab-state-v1';
 const welcome=()=>[{role:'assistant',text:'Welcome! 👋 Tap your pawn on e2 and move it to e4. I’ll explain the ideas as you play. You can ask a question anytime.'}];
 const initial=()=>({mode:'lesson',lessonId:'center',moves:[],completed:[],claimed:'',lastComment:'',watchSpeed:7000,chat:welcome()});
 function restore(){try{const data=JSON.parse(localStorage.getItem(storeKey));if(!data||!Array.isArray(data.moves)||!['lesson','practice','watch'].includes(data.mode))return initial();return {mode:data.mode,lessonId:lessons.some(l=>l.id===data.lessonId)?data.lessonId:'center',moves:data.moves.slice(0,400).filter(x=>typeof x==='string'&&/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(x)),completed:Array.isArray(data.completed)?data.completed.filter(x=>lessons.some(l=>l.id===x)):[],claimed:typeof data.claimed==='string'?data.claimed:'',lastComment:typeof data.lastComment==='string'?data.lastComment:'',watchSpeed:[4000,7000,12000,20000].includes(data.watchSpeed)?data.watchSpeed:7000,chat:Array.isArray(data.chat)?data.chat.slice(-40).filter(m=>m&&['user','assistant'].includes(m.role)&&typeof m.text==='string').map(m=>({role:m.role,text:m.text.slice(0,1700)})):welcome()};}catch{return initial();}}
-let state=restore(),positions=[start],labels=[],moves=[],selected=-1,pending=null,botTimer=null,error='',botPending=false,coachBusy=false,coachOnline=false,coachSequence=0,coachAccessCode='',watchPlaying=false,watchTimer=null,watchPreview=null,watchPhase='consider',watchFocusKey='';
+let state=restore(),positions=[start],labels=[],moves=[],selected=-1,pending=null,botTimer=null,error='',botPending=false,coachBusy=false,coachOnline=false,coachSequence=0,coachAccessCode='',watchPlaying=false,watchTimer=null,watchPreview=null,watchPhase='consider',watchFocusKey='',watchExpanded=false,watchReplay=0,watchThreatCache={id:'',risk:null};
 function rebuild(){positions=[start];labels=[];moves=[];for(const uci of state.moves){const s=positions.at(-1),m=legal(s).find(x=>key(x)===uci);if(!m)break;labels.push(moveLabel(s,m));moves.push(m);positions.push(apply(s,m));}state.moves=moves.map(key);if(state.mode==='lesson'&&state.moves.length>lessons.find(x=>x.id===state.lessonId).moves.length){state.moves=[];positions=[start];labels=[];moves=[];}}
 function save(){try{localStorage.setItem(storeKey,JSON.stringify(state));}catch{const indicator=document.querySelector('.saved');if(indicator)indicator.textContent='Progress saving unavailable in this browser';}}
-function resetBoard(){pauseWatch();watchPreview=null;watchPhase='consider';watchFocusKey='';clearTimeout(botTimer);botPending=false;selected=-1;pending=null;error='';state.moves=[];state.claimed='';state.lastComment='';state.chat=welcome();coachSequence++;coachBusy=false;positions=[start];labels=[];moves=[];save();render();}
+function resetBoard(){pauseWatch();watchPreview=null;watchPhase='consider';watchFocusKey='';watchReplay=0;watchExpanded=false;watchThreatCache.id='';watchExpanded=false;watchReplay=0;watchThreatCache.id='';clearTimeout(botTimer);botPending=false;selected=-1;pending=null;error='';state.moves=[];state.claimed='';state.lastComment='';state.chat=welcome();coachSequence++;coachBusy=false;positions=[start];labels=[];moves=[];save();render();}
 function lesson(){return lessons.find(l=>l.id===state.lessonId)||lessons[0];}
 function current(){return positions.at(-1);}
 function status(){return gameStatus(positions);}
@@ -445,18 +452,18 @@ function watchSelectionReason(s,m){
 }
 function pauseWatch(){watchPlaying=false;if(watchTimer!==null){clearTimeout(watchTimer);watchTimer=null;}}
 function scheduleWatch(){
- if(!watchPlaying||state.mode!=='watch'||watchPreview)return;
+ if(!watchPlaying||state.mode!=='watch'||watchReplay)return;
  if(status().done||state.claimed||state.moves.length>=watchLimit){pauseWatch();render();return;}
- watchTimer=setTimeout(()=>{watchTimer=null;if(!watchPlaying||state.mode!=='watch'||watchPreview)return;watchStep();scheduleWatch();},Math.max(1000,state.watchSpeed||7000));
+ watchTimer=setTimeout(()=>{watchTimer=null;if(!watchPlaying||state.mode!=='watch'||watchReplay)return;watchStep();scheduleWatch();},Math.max(1000,state.watchSpeed||7000));
 }
 function watchStep(){
- if(state.mode!=='watch'||watchPreview||status().done||state.moves.length>=watchLimit)return;
+ if(state.mode!=='watch'||watchReplay||status().done||state.moves.length>=watchLimit)return;
  const m=watchBotMove();if(!m)return;
- watchPhase='consider';watchFocusKey='';play(m,true);
+ watchPhase='consider';watchFocusKey='';watchExpanded=false;watchReplay=0;watchThreatCache.id='';play(m,true);
 }
 function watchPrevious(){
  if(!state.moves.length)return;
- pauseWatch();watchPreview=null;watchPhase='consider';watchFocusKey='';
+ pauseWatch();watchPreview=null;watchPhase='consider';watchFocusKey='';watchReplay=0;watchExpanded=false;watchThreatCache.id='';watchExpanded=false;watchReplay=0;watchThreatCache.id='';
  state.moves.pop();labels.pop();moves.pop();positions.pop();state.claimed='';state.lastComment='';selected=-1;error='';save();render();
 }
 function watchTinyReason(s,m){
@@ -508,33 +515,108 @@ function watchLessPreferred(s,alternative,chosen){
  if(difference>0)return 'The bot scores the chosen position higher for activity and material.';
  return 'Also playable; the bot favours a different setup.';
 }
+// Only show a red arrow for a concrete legal reply: checkmate or a material-winning capture.
+// This is a one-reply tactical illustration, not a full engine search.
+function watchTacticalRisk(s,candidate){
+ const after=apply(s,candidate),replies=legal(after);
+ let best=null;
+ for(const reply of replies){
+  const punished=apply(after,reply),responses=legal(punished);
+  if(!responses.length&&checked(punished)){
+   return {kind:'mate',candidate,reply,after,punished,net:100000,
+    short:'Opponent can checkmate immediately after that move.',
+    detail:'After '+moveLabel(s,candidate)+', '+moveLabel(after,reply)+' is checkmate. The king has no legal escape.'};
+  }
+  const captured=reply[3]==='ep'?'p':after.b[reply[1]].toLowerCase();
+  if(captured==='.'||captured==='k')continue;
+  const gain=pieceValues[captured]||0;
+  const attacker=after.b[reply[0]].toLowerCase();
+  const attackerValue=pieceValues[attacker]||0;
+  const recapture=responses.some(m=>m[1]===reply[1]&&
+   (punished.b[m[1]]!=='.'||m[3]==='ep'));
+  // A legal recapture trades the capturing piece back. Only flag an actual
+  // immediate material imbalance, not every ordinary equal exchange.
+  const net=gain-(recapture?attackerValue:0);
+  if(net<100)continue;
+  if(!best||net>best.net){
+   const name=pieceNames[captured],target=sq(reply[1]);
+   const short=recapture?'Opponent gains material in this capture sequence.':
+    'Opponent can take your '+name+' on '+target+'.';
+   const detail='After '+moveLabel(s,candidate)+', the reply '+moveLabel(after,reply)+' captures your '+name+'. '+
+    (recapture?'You can recapture, but the exchange still costs material.':'No immediate legal recapture is available.')+
+    ' This is a possible reply, not a forced win.';
+   best={kind:'material',candidate,reply,after,punished,net,short,detail};
+  }
+ }
+ return best;
+}
+function watchRiskFor(s,candidate){
+ const id=s.b.join('')+':'+s.t+':'+s.c+':'+s.ep+':'+key(candidate);
+ if(watchThreatCache.id!==id)watchThreatCache={id,risk:watchTacticalRisk(s,candidate)};
+ return watchThreatCache.risk;
+}
+function watchFocus(plan){
+ if(!plan)return null;
+ const focused=plan.candidates.find(m=>key(m)===watchFocusKey)||plan.chosen;
+ const preferred=key(focused)===key(plan.chosen);
+ const risk=preferred?null:watchRiskFor(plan.s,focused);
+ return {focused,preferred,risk};
+}
+function watchSelect(m){
+ pauseWatch();const next=key(m);
+ if(watchFocusKey!==next){watchFocusKey=next;watchExpanded=false;watchReplay=0;}
+ else if(watchReplay){watchReplay=0;}
+ else watchExpanded=!watchExpanded;
+ render();
+}
+function watchRiskDemo(step){watchReplay=step;watchExpanded=true;pauseWatch();render();}
 function showWatchAnalysis(){
  const panel=el('watchAnalysis');panel.replaceChildren();
- panel.hidden=state.mode!=='watch';
- if(state.mode!=='watch')return;
+ panel.hidden=state.mode!=='watch';if(state.mode!=='watch')return;
  const done=status().done||state.moves.length>=watchLimit,plan=done?null:watchCandidates();
  if(!plan){const p=document.createElement('p');p.className='watch-why';p.textContent='Game complete. Restart to watch another.';panel.appendChild(p);return;}
- const {s,chosen,candidates}=plan;
+ const {s,chosen,candidates}=plan,{focused,preferred,risk}=watchFocus(plan);
  const legend=document.createElement('div');legend.className='watch-key';
- legend.innerHTML='<span><i class="key-dot green"></i> Green = bot’s pick</span><span><i class="key-dot yellow"></i> Yellow = other options</span>';
+ legend.innerHTML='<span><i class="key-dot green"></i> Green = bot’s pick</span><span><i class="key-dot yellow"></i> Yellow = other options</span>'+(risk?'<span><i class="key-dot red"></i> Red = opponent reply</span>':'');
  panel.appendChild(legend);
  const chips=document.createElement('div');chips.className='watch-chips';
- const focused=candidates.find(m=>key(m)===watchFocusKey)||chosen;
  for(const m of candidates){
-  const best=key(m)===key(chosen),selected=key(m)===key(focused);
-  const chip=document.createElement('button');chip.type='button';
-  chip.className='watch-chip '+(best?'best':'alt')+(selected?' focused':'');
-  chip.textContent=(best?'✓ ':'')+moveLabel(s,m);
-  chip.setAttribute('aria-label',(best?'Recommended ':'Less preferred ')+moveLabel(s,m)+'. '+(best?watchTinyReason(s,m):watchLessPreferred(s,m,chosen)));
-  chip.setAttribute('aria-pressed',String(selected));
-  chip.onclick=()=>{pauseWatch();watchFocusKey=key(m);render();};
-  chips.appendChild(chip);
+  const green=key(m)===key(chosen),active=key(m)===key(focused);
+  const chip=document.createElement('button');chip.type='button';chip.className='watch-chip '+(green?'best':'alt')+(active?' focused':'');
+  chip.textContent=(green?'✓ ':'')+moveLabel(s,m);
+  chip.setAttribute('aria-label',(green?'Bot choice ':'Alternative ')+moveLabel(s,m));
+  chip.setAttribute('aria-pressed',String(active));
+  chip.onclick=()=>watchSelect(m);chips.appendChild(chip);
  }
  panel.appendChild(chips);
- const reason=document.createElement('p');reason.className='watch-why';
- const best=key(focused)===key(chosen);
- reason.textContent=best?'✓ Why best: '+watchTinyReason(s,focused):'◯ Why less preferred: '+watchLessPreferred(s,focused,chosen);
+ const reason=document.createElement('button');reason.type='button';
+ reason.className='watch-why-btn'+(risk?' watch-danger':'');
+ reason.textContent=(preferred?'✓ Why green: ':'◯ Why yellow: ')+
+  (preferred?watchTinyReason(s,focused):(risk?risk.short:watchLessPreferred(s,focused,chosen)));
+ reason.setAttribute('aria-expanded',String(watchExpanded));
+ reason.setAttribute('aria-label',reason.textContent+'. Tap for an explanation.');
+ reason.onclick=()=>{watchExpanded=!watchExpanded;render();};
  panel.appendChild(reason);
+ if(risk){
+  const note=document.createElement('div');note.className='watch-replay-note';
+  note.textContent=watchReplay===0?'🔴 Red arrow: '+moveLabel(risk.after,risk.reply)+' after yellow.':
+   watchReplay===1?'Step 1 · '+moveLabel(s,focused)+' — yellow move played.':
+   'Step 2 · '+moveLabel(risk.after,risk.reply)+' — opponent responds.';
+  panel.appendChild(note);
+  const actions=document.createElement('div');actions.className='watch-replay-row';
+  const demo=document.createElement('button');demo.className='btn'+(watchReplay<2?' primary':'');demo.type='button';
+  demo.textContent=watchReplay===0?'▶ Show what happens':watchReplay===1?'▶ Opponent replies':'↶ Back to options';
+  demo.onclick=()=>watchRiskDemo(watchReplay===0?1:watchReplay===1?2:0);
+  actions.appendChild(demo);
+  if(watchReplay>0){const back=document.createElement('button');back.className='btn';back.textContent='↶ Reset board';back.onclick=()=>watchRiskDemo(0);actions.appendChild(back);}
+  panel.appendChild(actions);
+ }
+ if(watchExpanded){
+  const detail=document.createElement('div');detail.className='watch-details'+(risk?' watch-danger':'');
+  const p=document.createElement('p');p.textContent=preferred?watchReason(s,chosen):
+   watchLessPreferred(s,focused,chosen)+' '+(risk?risk.detail:'No immediate winning reply was found in this one-move check; the yellow move may still be playable.');
+  detail.appendChild(p);panel.appendChild(detail);
+ }
 }
 function toFen(s){
  const rows=[];for(let r=0;r<8;r++){let out='',empty=0;for(let f=0;f<8;f++){const p=s.b[r*16+f];if(p==='.'){empty++;continue;}if(empty){out+=empty;empty=0;}out+=p;}if(empty)out+=empty;rows.push(out);}
@@ -666,19 +748,22 @@ function moveSelected(i){
 }
 function showPromotion(){const choices=el('promotionChoices');choices.replaceChildren();for(const m of pending){const b=document.createElement('button');b.type='button';b.textContent=glyph[m[2].toUpperCase()];b.setAttribute('aria-label','Promote to '+pieceNames[m[2]]);b.onclick=()=>{el('promotionModal').hidden=true;play(m);};choices.appendChild(b);}el('promotionModal').hidden=false;}
 function renderBoard(){
- const board=el('board'),s=state.mode==='watch'&&watchPreview?watchPreview.position:current(),all=state.mode==='watch'?[]:legal(s),targets=all.filter(m=>m[0]===selected).map(m=>m[1]);board.replaceChildren();
- const latest=watchPreview?watchPreview.move:moves.at(-1);
- const watchPlan=state.mode==='watch'&&!watchPreview&&state.moves.length<watchLimit?watchCandidates():null;
+ const board=el('board'),watchPlan=state.mode==='watch'&&state.moves.length<watchLimit&&!status().done?watchCandidates():null;
+ const focus=watchFocus(watchPlan),risk=focus?.risk;
+ const s=watchReplay&&risk?(watchReplay===1?risk.after:risk.punished):current();
+ const all=state.mode==='watch'?[]:legal(s),targets=all.filter(m=>m[0]===selected).map(m=>m[1]);board.replaceChildren();
+ const latest=watchReplay&&risk?(watchReplay===1?focus.focused:risk.reply):moves.at(-1);
  for(let j=0;j<64;j++){
   const i=(j>>3)*16+(j&7),p=s.b[i],cell=document.createElement('button');cell.type='button';cell.className='sq '+(((i>>4)+(i&7))%2?'dark':'light');
-  if(latest&&[latest[0],latest[1]].includes(i))cell.classList.add(watchPreview?'preview':'last');
+  if(latest&&[latest[0],latest[1]].includes(i))cell.classList.add(watchReplay?'preview':'last');
   if(selected===i)cell.classList.add('selected');
   if(targets.includes(i))cell.classList.add('capture');
   const piece=p==='.'?'empty':(side(p)===1?'white ':'black ')+pieceNames[p.toLowerCase()];
   cell.setAttribute('aria-label',sq(i)+': '+piece+(targets.includes(i)?', legal destination':''));
   if(state.mode==='watch'){
-   const plan=watchPlan,target=plan?.candidates.find(m=>m[1]===i);
-   if(target){cell.setAttribute('aria-label',sq(i)+': '+piece+', option '+moveLabel(plan.s,target));cell.onclick=()=>{pauseWatch();watchFocusKey=key(target);render();};}
+   const candidate=watchPlan?.candidates.find(m=>m[1]===i)||watchPlan?.candidates.find(m=>m[0]===i);
+   if(candidate&&!watchReplay){cell.setAttribute('aria-label',sq(i)+': '+piece+', consider '+moveLabel(watchPlan.s,candidate));cell.onclick=()=>watchSelect(candidate);}
+   else if(risk&&i===risk.reply[1]&&!watchReplay){cell.setAttribute('aria-label',sq(i)+': red opponent reply '+moveLabel(risk.after,risk.reply));cell.onclick=()=>watchRiskDemo(1);}
    else {cell.setAttribute('aria-disabled','true');cell.onclick=()=>{};}
   }else cell.onclick=()=>moveSelected(i);
   if(p!=='.'){const span=document.createElement('span');span.className='piece '+(side(p)===1?'white':'black');span.textContent=glyph[p];span.setAttribute('aria-hidden','true');cell.appendChild(span);}
@@ -687,7 +772,7 @@ function renderBoard(){
   if((i>>4)===7){const file=document.createElement('span');file.className='coord file';file.textContent=sq(i)[0];cell.appendChild(file);}
   board.appendChild(cell);
  }
- if(watchPlan&&!status().done){
+ if(watchPlan&&!watchReplay){
   const plan=watchPlan;
   if(plan){
    const ns='http://www.w3.org/2000/svg';
@@ -695,7 +780,7 @@ function renderBoard(){
    svg.setAttribute('viewBox','0 0 800 800');svg.setAttribute('preserveAspectRatio','none');
    svg.setAttribute('role','img');svg.setAttribute('aria-label','Green arrow marks the bot’s recommended move. Up to three yellow arrows mark other legal moves.');
    const defs=document.createElementNS(ns,'defs');
-   for(const [id,color] of [['watchYellow','#eabb30'],['watchGreen','#10a05b']]){
+   for(const [id,color] of [['watchYellow','#eabb30'],['watchGreen','#10a05b'],['watchRed','#e24a45']]){
     const mark=document.createElementNS(ns,'marker');
     for(const [name,val] of [['id',id],['markerWidth','4'],['markerHeight','4'],['refX','3.3'],['refY','2'],['orient','auto'],['viewBox','0 0 4 4']])mark.setAttribute(name,val);
     const triangle=document.createElementNS(ns,'path');triangle.setAttribute('d','M 0 0 L 4 2 L 0 4 Z');triangle.setAttribute('fill',color);
@@ -712,6 +797,13 @@ function renderBoard(){
     if(active){const ring=document.createElementNS(ns,'circle');ring.setAttribute('cx',x2);ring.setAttribute('cy',y2);ring.setAttribute('r','33');ring.setAttribute('fill','none');ring.setAttribute('stroke',best?'#10a05b':'#eabb30');ring.setAttribute('stroke-width','9');svg.appendChild(ring);}
    };
    plan.others.forEach(m=>draw(m,false));draw(plan.chosen,true);
+   if(risk){
+    const m=risk.reply,x1=(m[0]&7)*100+50,y1=(m[0]>>4)*100+50,x2=(m[1]&7)*100+50,y2=(m[1]>>4)*100+50;
+    const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len;
+    const d='M '+(x1+ux*19)+' '+(y1+uy*19)+' L '+(x2-ux*25)+' '+(y2-uy*25);
+    const outer=document.createElementNS(ns,'path');outer.setAttribute('d',d);outer.setAttribute('fill','none');outer.setAttribute('stroke','#521c18');outer.setAttribute('stroke-width','25');outer.setAttribute('opacity','.58');outer.setAttribute('stroke-linecap','round');svg.appendChild(outer);
+    const arrow=document.createElementNS(ns,'path');arrow.setAttribute('d',d);arrow.setAttribute('fill','none');arrow.setAttribute('stroke','#e24a45');arrow.setAttribute('stroke-width','16');arrow.setAttribute('stroke-linecap','round');arrow.setAttribute('marker-end','url(#watchRed)');svg.appendChild(arrow);
+   }
    board.appendChild(svg);
   }
  }
@@ -729,8 +821,8 @@ function renderSidebar(){
   const note=document.createElement('p');note.className='small-note';note.textContent='Play the suggested White moves. Coach makes the Black replies. Use Next guided move to see the idea in action.';sidebar.appendChild(note);
  }else if(state.mode==='watch'){
   const title=document.createElement('div');title.className='section-header';title.textContent='Watch & Learn';sidebar.appendChild(title);
-  const description=document.createElement('p');description.textContent='Watch four options drawn on the board: green is recommended, yellow shows alternatives.';sidebar.appendChild(description);
-  const note=document.createElement('p');note.className='small-note';note.textContent='Tap a move label to compare its one-line reason, then Play green move or Auto-play. These are teaching suggestions, not chess-engine rankings.';sidebar.appendChild(note);
+  const description=document.createElement('p');description.textContent='Green marks the bot’s choice. Yellow shows other options. When a move allows a clear tactical reply, a red arrow appears.';sidebar.appendChild(description);
+  const note=document.createElement('p');note.className='small-note';note.textContent='Tap a square or coloured move to explain it. Tap the explanation for details, or play through a red reply. This is not grandmaster analysis.';sidebar.appendChild(note);
  }else{
   const title=document.createElement('div');title.className='section-header';title.textContent='Practice game';sidebar.appendChild(title);
   const t=document.createElement('p');t.style.margin='0 0 12px';t.textContent='You play White against a beginner-friendly computer opponent. Explore, experiment and undo mistakes.';sidebar.appendChild(t);
@@ -739,9 +831,10 @@ function renderSidebar(){
  }
 }
 function render(){
- const s=current(),st=status();renderBoard();renderSidebar();renderCoach();showWatchAnalysis();
+ document.body.classList.toggle('watch-mode',state.mode==='watch');
+ const s=current(),st=status();renderBoard();renderSidebar();showWatchAnalysis();
  document.querySelectorAll('[data-mode]').forEach(b=>{const active=b.dataset.mode===state.mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
- el('turnStatus').textContent=state.claimed||st.done?state.claimed||'Game over':state.mode==='watch'?(watchPreview?'Previewing a possibility':(s.t===1?'White':'Black')+(watchPhase==='consider'?' considers options':' has chosen')):botPending?'Coach thinking…':st.text;
+ el('turnStatus').textContent=state.claimed||st.done?state.claimed||'Game over':state.mode==='watch'?(watchReplay?'Viewing a possible sequence':(s.t===1?'White':'Black')+(watchPhase==='consider'?' considers options':' has chosen')):botPending?'Coach thinking…':st.text;
  el('moveCount').textContent='Move '+s.full;el('topPlayerName').textContent=state.mode==='watch'?'Black bot':'Coach';el('bottomPlayerName').textContent=state.mode==='watch'?'White bot':'You';el('bottomPlayerSub').textContent='· White';el('opponentSub').textContent=state.mode==='lesson'?'· guided moves':state.mode==='watch'?'· explains each move':'· practice bot';
  const history=el('history');history.replaceChildren();
  if(!labels.length){const empty=document.createElement('span');empty.className='empty-moves';empty.textContent=state.mode==='watch'?'The first move has not been played yet.':'No moves yet. Make your first move!';history.appendChild(empty);}
@@ -751,9 +844,9 @@ function render(){
  document.querySelector('.actions').hidden=state.mode==='watch';
  document.querySelector('.callout').hidden=state.mode==='watch';
  el('watchPlayBtn').textContent=watchPlaying?'Ⅱ Pause':'▶ Auto-play';
- el('watchPlayBtn').disabled=!!watchPreview||(state.moves.length>=watchLimit||st.done)&&!watchPlaying;
+ el('watchPlayBtn').disabled=!!watchReplay||(state.moves.length>=watchLimit||st.done)&&!watchPlaying;
  el('watchPrevBtn').disabled=!state.moves.length;
- el('watchStepBtn').disabled=!!watchPreview||st.done||state.moves.length>=watchLimit;
+ el('watchStepBtn').disabled=!!watchReplay||st.done||state.moves.length>=watchLimit;
  el('watchStepBtn').textContent='Play green move →';
  el('watchSpeed').value=String(state.watchSpeed||7000);
  el('copyMovesBtn').disabled=!state.moves.length;
@@ -775,7 +868,7 @@ function render(){
 }
 function modeChange(mode){if(state.mode===mode)return;pauseWatch();state.mode=mode;resetBoard();}
 document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>modeChange(btn.dataset.mode)));
-el('watchPlayBtn').addEventListener('click',()=>{if(state.mode!=='watch'||watchPreview)return;if(watchPlaying)pauseWatch();else{if(status().done||state.moves.length>=watchLimit)return;watchPlaying=true;scheduleWatch();}render();});
+el('watchPlayBtn').addEventListener('click',()=>{if(state.mode!=='watch'||watchReplay)return;if(watchPlaying)pauseWatch();else{if(status().done||state.moves.length>=watchLimit)return;watchPlaying=true;scheduleWatch();}render();});
 el('watchPrevBtn').addEventListener('click',watchPrevious);
 el('watchStepBtn').addEventListener('click',()=>{if(state.mode!=='watch')return;pauseWatch();watchStep();});
 el('watchRestartBtn').addEventListener('click',resetBoard);
@@ -788,14 +881,10 @@ el('copyMovesBtn').addEventListener('click',async()=>{
  try{if(!navigator.clipboard?.writeText)throw Error('Clipboard not supported');await navigator.clipboard.writeText(content);el('copyMovesBtn').textContent='✓ Game moves copied';}
  catch{window.prompt('Copy these game moves:',content);}
 });
-el('coachForm').addEventListener('submit',e=>{e.preventDefault();askCoach(el('coachInput').value);});
-el('coachInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();askCoach(el('coachInput').value);}});
-document.querySelectorAll('[data-ask]').forEach(b=>b.addEventListener('click',()=>askCoach(b.dataset.ask)));
-el('clearChat').addEventListener('click',()=>{state.chat=welcome();coachSequence++;coachBusy=false;save();renderCoach();});
 el('nextBtn').addEventListener('click',()=>{if(state.mode!=='lesson'||botPending||status().done)return;const m=nextLessonMove();if(m)play(m,true);});
 el('cancelPromotion').addEventListener('click',()=>{pending=null;el('promotionModal').hidden=true;render();});
 rebuild();if(state.mode==='practice'&&current().t===-1){state.moves.pop();rebuild();}
-save();render();checkCoachMode();
+save();render();
 })();
 </script>
 </body>
