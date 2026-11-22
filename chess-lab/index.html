@@ -472,6 +472,42 @@ function watchTinyReason(s,m){
  if(piece==='k')return 'Moves the king away from danger.';
  return 'Improves piece activity.';
 }
+function watchLessPreferred(s,alternative,chosen){
+ const isCapture=m=>m[3]==='ep'||s.b[m[1]]!=='.';
+ const captured=m=>m[3]==='ep'?'p':s.b[m[1]].toLowerCase();
+ const chosenPiece=s.b[chosen[0]].toLowerCase(),altPiece=s.b[alternative[0]].toLowerCase();
+ const bestAfter=apply(s,chosen);
+ const altAfter=apply(s,alternative);
+ const chosenCenterPawn=chosenPiece==='p'&&[3,4].includes(chosen[1]&7);
+ const altCenterPawn=altPiece==='p'&&[3,4].includes(alternative[1]&7);
+ const home=m=>s.t===1?(m[0]>>4)===7:(m[0]>>4)===0;
+ const chosenDevelops=['n','b'].includes(chosenPiece)&&home(chosen);
+ const altDevelops=['n','b'].includes(altPiece)&&home(alternative);
+ const book=watchOpening[state.moves.length]===key(chosen);
+ if(book&&chosenCenterPawn&&altCenterPawn)return 'Playable too; this lesson demonstrates an e-pawn or d-pawn opening.';
+ if(book&&chosenDevelops&&altDevelops)return 'Also develops a piece; this lesson follows a particular opening.';
+ if(chosen[2]&&!alternative[2])return 'Delays promoting a pawn.';
+ if(chosen[3]==='castle'&&alternative[3]!=='castle')return 'Leaves your king in the centre longer.';
+ if(isCapture(chosen)&&!isCapture(alternative))return 'Misses the capture the bot prefers.';
+ if(isCapture(chosen)&&isCapture(alternative)&&
+    (pieceValues[captured(chosen)]||0)>(pieceValues[captured(alternative)]||0))
+   return 'Captures a less valuable piece.';
+ if(checked(bestAfter)&&!checked(altAfter))return 'Does not create the immediate check.';
+ if(chosenCenterPawn&&!altCenterPawn)return 'Does not advance a central pawn like the chosen move.';
+ if(chosenDevelops&&!altDevelops)return 'Delays developing a knight or bishop.';
+ if(altPiece==='q'&&s.full<=6)return 'Brings the queen out early, before other pieces.';
+ if(altPiece==='p'&&[0,7].includes(alternative[1]&7)&&!chosenCenterPawn)return 'Advances a flank pawn, with less central influence.';
+ if(altPiece==='n'&&chosenPiece==='n'){
+   const dist=m=>Math.abs((m[1]&7)-3.5)+Math.abs((m[1]>>4)-3.5);
+   if(dist(alternative)>dist(chosen))return 'Places the knight farther from the centre.';
+ }
+ if(attacked(altAfter,alternative[1],-s.t)&&!attacked(bestAfter,chosen[1],-s.t))
+    return 'Moves to a square the opponent attacks.';
+ if(book)return 'Also playable; the bot is following its teaching opening.';
+ const difference=moveMerit(s,chosen)-moveMerit(s,alternative);
+ if(difference>0)return 'The bot scores the chosen position higher for activity and material.';
+ return 'Also playable; the bot favours a different setup.';
+}
 function showWatchAnalysis(){
  const panel=el('watchAnalysis');panel.replaceChildren();
  panel.hidden=state.mode!=='watch';
@@ -489,7 +525,7 @@ function showWatchAnalysis(){
   const chip=document.createElement('button');chip.type='button';
   chip.className='watch-chip '+(best?'best':'alt')+(selected?' focused':'');
   chip.textContent=(best?'✓ ':'')+moveLabel(s,m);
-  chip.setAttribute('aria-label',(best?'Recommended ':'Alternative ')+moveLabel(s,m)+'. '+watchTinyReason(s,m));
+  chip.setAttribute('aria-label',(best?'Recommended ':'Less preferred ')+moveLabel(s,m)+'. '+(best?watchTinyReason(s,m):watchLessPreferred(s,m,chosen)));
   chip.setAttribute('aria-pressed',String(selected));
   chip.onclick=()=>{pauseWatch();watchFocusKey=key(m);render();};
   chips.appendChild(chip);
@@ -497,7 +533,7 @@ function showWatchAnalysis(){
  panel.appendChild(chips);
  const reason=document.createElement('p');reason.className='watch-why';
  const best=key(focused)===key(chosen);
- reason.textContent=(best?'✓ Recommended':'◯ Alternative')+' · '+watchTinyReason(s,focused)+(best?' Teaching-bot preference.':' Tap another move to compare.');
+ reason.textContent=best?'✓ Why best: '+watchTinyReason(s,focused):'◯ Why less preferred: '+watchLessPreferred(s,focused,chosen);
  panel.appendChild(reason);
 }
 function toFen(s){
