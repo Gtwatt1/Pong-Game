@@ -101,6 +101,24 @@
     .board .sq.preview:before{content:"";background:#8dd6a2;position:absolute;inset:0;opacity:.35;}
     @media(max-width:680px){.mode-tabs.top-modes{margin-bottom:12px;max-width:none}.watch-alternatives{grid-template-columns:1fr 1fr;}.watch-actions .btn{padding:10px 9px;font-size:12px;}}
 
+    /* Watch & Learn: all choices are visible ON the board. */
+    .board{position:relative}
+    .watch-arrows{position:absolute;inset:0;width:100%;height:100%;z-index:5;pointer-events:none;overflow:visible}
+    .watch-analysis{background:#f7fbf4;border:1px solid #dce8d8;border-radius:12px;margin:9px 0 0;padding:9px 11px;}
+    .watch-key{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:11px;color:#596a5f;font-weight:750;margin-bottom:7px;}
+    .watch-key .key-dot{width:10px;height:10px;display:inline-block;border-radius:50%;margin-right:4px;vertical-align:-1px;}
+    .watch-key .green{background:#16a05c}.watch-key .yellow{background:#edbd31}
+    .watch-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 7px;}
+    .watch-chip{font-size:12px;font-weight:750;line-height:1.2;border:1.5px solid #d7dacd;border-radius:999px;background:white;padding:7px 10px;color:#3a493e;min-height:33px;}
+    .watch-chip.best{border-color:#34a16b;background:#e6f7ea;color:#155b35}
+    .watch-chip.alt{border-color:#e5c359;background:#fff9e4;color:#665018}
+    .watch-chip.focused{box-shadow:0 0 0 2px #253e2d44;}
+    .watch-why{margin:0!important;color:#324c39;font-size:12px!important;line-height:1.35!important;}
+    .watch-actions{margin-top:8px;padding:8px;gap:6px;background:#f7f9f4;}
+    .watch-actions .btn{padding:9px 10px;flex:1 1 100px;}
+    .watch-actions label{flex:0 0 auto;margin-left:auto;font-size:11px;}
+    .watch-actions select{padding:7px 5px;}
+    @media(max-width:680px){.watch-chips{gap:5px}.watch-chip{font-size:11px;padding:6px 9px;min-height:30px}.watch-actions .btn{flex:1 1 82px;padding:9px 6px;font-size:12px}.watch-actions label{margin:0 auto}.board-bottom{margin-top:7px}}
     @media(max-width:1000px){.layout{grid-template-columns:minmax(0,1fr) minmax(285px,1fr)}.aside{display:block}.aside .panel{height:auto}}
     @media(max-width:680px){
       .layout{display:flex;flex-direction:column;gap:12px;}
@@ -129,15 +147,16 @@
       <div class="board-top"><div class="player"><span class="avatar black" aria-hidden="true">♚</span><span><span id="topPlayerName">Coach</span> <small class="sub" id="opponentSub">· guided moves</small></span></div><span class="status-pill" id="turnStatus">White to move</span></div>
       <div class="board-wrap"><div class="board" id="board" role="group" aria-label="Chessboard, White at bottom"></div></div>
       <div class="board-bottom"><div class="player"><span class="avatar" aria-hidden="true">♔</span><span><span id="bottomPlayerName">You</span> <small class="sub" id="bottomPlayerSub">· White</small></span></div><small class="sub" id="moveCount">Move 1</small></div>
+      <section class="watch-analysis" id="watchAnalysis" hidden aria-live="polite" aria-label="Four chess moves shown directly on the board"></section>
       <div class="actions"><button class="btn" id="undoBtn">↶ Undo</button><button class="btn primary" id="nextBtn">Next guided move →</button><button class="btn" id="restartBtn">↻ Restart</button></div>
       <div class="watch-actions" id="watchControls" hidden aria-label="Spectator controls">
         <button class="btn primary" type="button" id="watchPlayBtn">▶ Auto-play</button>
         <button class="btn" type="button" id="watchPrevBtn">← Previous</button>
         <button class="btn" type="button" id="watchStepBtn">Next move →</button>
-        <label for="watchSpeed">Time per move <select id="watchSpeed"><option value="4000">4 sec</option><option value="7000" selected>7 sec</option><option value="12000">12 sec</option><option value="20000">20 sec</option></select></label>
+        <button class="btn" type="button" id="watchRestartBtn">↻ Restart</button>
+        <label for="watchSpeed">Pace <select id="watchSpeed"><option value="4000">4 sec</option><option value="7000" selected>7 sec</option><option value="12000">12 sec</option><option value="20000">20 sec</option></select></label>
       </div>
       <div class="callout" aria-live="polite"><div class="callout-title" id="calloutTitle">Your first lesson</div><p class="callout-body" id="calloutBody"></p><div class="error" id="errorMessage" hidden></div></div>
-      <section class="watch-analysis" id="watchAnalysis" hidden aria-live="polite" aria-label="Choices and reasoning before each move"></section>
     </section>
     <section class="coach-panel panel" id="coachPanel" aria-label="Your chess tutor">
       <div class="coach-head"><div class="coach-name"><span class="coach-icon" aria-hidden="true">♞</span> Your coach</div><span class="coach-status" id="coachMode">On-device guidance</span></div>
@@ -298,10 +317,10 @@ const storeKey='chess-lab-state-v1';
 const welcome=()=>[{role:'assistant',text:'Welcome! 👋 Tap your pawn on e2 and move it to e4. I’ll explain the ideas as you play. You can ask a question anytime.'}];
 const initial=()=>({mode:'lesson',lessonId:'center',moves:[],completed:[],claimed:'',lastComment:'',watchSpeed:7000,chat:welcome()});
 function restore(){try{const data=JSON.parse(localStorage.getItem(storeKey));if(!data||!Array.isArray(data.moves)||!['lesson','practice','watch'].includes(data.mode))return initial();return {mode:data.mode,lessonId:lessons.some(l=>l.id===data.lessonId)?data.lessonId:'center',moves:data.moves.slice(0,400).filter(x=>typeof x==='string'&&/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(x)),completed:Array.isArray(data.completed)?data.completed.filter(x=>lessons.some(l=>l.id===x)):[],claimed:typeof data.claimed==='string'?data.claimed:'',lastComment:typeof data.lastComment==='string'?data.lastComment:'',watchSpeed:[4000,7000,12000,20000].includes(data.watchSpeed)?data.watchSpeed:7000,chat:Array.isArray(data.chat)?data.chat.slice(-40).filter(m=>m&&['user','assistant'].includes(m.role)&&typeof m.text==='string').map(m=>({role:m.role,text:m.text.slice(0,1700)})):welcome()};}catch{return initial();}}
-let state=restore(),positions=[start],labels=[],moves=[],selected=-1,pending=null,botTimer=null,error='',botPending=false,coachBusy=false,coachOnline=false,coachSequence=0,coachAccessCode='',watchPlaying=false,watchTimer=null,watchPreview=null,watchPhase='consider';
+let state=restore(),positions=[start],labels=[],moves=[],selected=-1,pending=null,botTimer=null,error='',botPending=false,coachBusy=false,coachOnline=false,coachSequence=0,coachAccessCode='',watchPlaying=false,watchTimer=null,watchPreview=null,watchPhase='consider',watchFocusKey='';
 function rebuild(){positions=[start];labels=[];moves=[];for(const uci of state.moves){const s=positions.at(-1),m=legal(s).find(x=>key(x)===uci);if(!m)break;labels.push(moveLabel(s,m));moves.push(m);positions.push(apply(s,m));}state.moves=moves.map(key);if(state.mode==='lesson'&&state.moves.length>lessons.find(x=>x.id===state.lessonId).moves.length){state.moves=[];positions=[start];labels=[];moves=[];}}
 function save(){try{localStorage.setItem(storeKey,JSON.stringify(state));}catch{const indicator=document.querySelector('.saved');if(indicator)indicator.textContent='Progress saving unavailable in this browser';}}
-function resetBoard(){pauseWatch();watchPreview=null;watchPhase='consider';clearTimeout(botTimer);botPending=false;selected=-1;pending=null;error='';state.moves=[];state.claimed='';state.lastComment='';state.chat=welcome();coachSequence++;coachBusy=false;positions=[start];labels=[];moves=[];save();render();}
+function resetBoard(){pauseWatch();watchPreview=null;watchPhase='consider';watchFocusKey='';clearTimeout(botTimer);botPending=false;selected=-1;pending=null;error='';state.moves=[];state.claimed='';state.lastComment='';state.chat=welcome();coachSequence++;coachBusy=false;positions=[start];labels=[];moves=[];save();render();}
 function lesson(){return lessons.find(l=>l.id===state.lessonId)||lessons[0];}
 function current(){return positions.at(-1);}
 function status(){return gameStatus(positions);}
@@ -413,8 +432,8 @@ function watchRecord(){
 function watchCandidates(){
  const s=current(),chosen=watchBotMove();
  if(!chosen)return null;
- const others=watchChoices(s).filter(x=>key(x.m)!==key(chosen)).slice(0,2).map(x=>x.m);
- const candidates=others.slice();candidates.splice((state.moves.length+1)%3,0,chosen);
+ const others=watchChoices(s).filter(x=>key(x.m)!==key(chosen)).slice(0,3).map(x=>x.m);
+ const candidates=[chosen,...others];
  return {s,chosen,others,candidates};
 }
 function watchSelectionReason(s,m){
@@ -428,65 +447,58 @@ function pauseWatch(){watchPlaying=false;if(watchTimer!==null){clearTimeout(watc
 function scheduleWatch(){
  if(!watchPlaying||state.mode!=='watch'||watchPreview)return;
  if(status().done||state.claimed||state.moves.length>=watchLimit){pauseWatch();render();return;}
- watchTimer=setTimeout(()=>{watchTimer=null;if(!watchPlaying||state.mode!=='watch'||watchPreview)return;watchStep();scheduleWatch();},Math.max(1000,Math.floor((state.watchSpeed||7000)/2)));
+ watchTimer=setTimeout(()=>{watchTimer=null;if(!watchPlaying||state.mode!=='watch'||watchPreview)return;watchStep();scheduleWatch();},Math.max(1000,state.watchSpeed||7000));
 }
 function watchStep(){
  if(state.mode!=='watch'||watchPreview||status().done||state.moves.length>=watchLimit)return;
- if(watchPhase==='consider'){watchPhase='reveal';render();return;}
  const m=watchBotMove();if(!m)return;
- watchPhase='consider';play(m,true);
+ watchPhase='consider';watchFocusKey='';play(m,true);
 }
 function watchPrevious(){
  if(!state.moves.length)return;
- pauseWatch();watchPreview=null;watchPhase='consider';
+ pauseWatch();watchPreview=null;watchPhase='consider';watchFocusKey='';
  state.moves.pop();labels.pop();moves.pop();positions.pop();state.claimed='';state.lastComment='';selected=-1;error='';save();render();
+}
+function watchTinyReason(s,m){
+ const piece=s.b[m[0]].toLowerCase(),captured=m[3]==='ep'?'p':s.b[m[1]].toLowerCase();
+ if(m[3]==='castle')return 'Gets the king to safety.';
+ if(m[2])return 'Promotes a pawn to a stronger piece.';
+ if(captured!=='.')return 'Captures a '+pieceNames[captured]+'.';
+ if(checked(apply(s,m)))return 'Creates check and forces a response.';
+ if(piece==='p'&&[3,4].includes(m[1]&7))return 'Fights for the centre.';
+ if(piece==='n')return 'Activates a knight.';
+ if(piece==='b')return 'Develops a bishop.';
+ if(piece==='p')return 'Claims space with a pawn.';
+ if(piece==='k')return 'Moves the king away from danger.';
+ return 'Improves piece activity.';
 }
 function showWatchAnalysis(){
  const panel=el('watchAnalysis');panel.replaceChildren();
  panel.hidden=state.mode!=='watch';
  if(state.mode!=='watch')return;
- const finished=status().done||state.moves.length>=watchLimit;
- const plan=finished?null:watchCandidates();
- if(plan){
-  const {s,chosen,others,candidates}=plan,who=s.t===1?'White':'Black';
-  const speaker=document.createElement('div');speaker.className='watch-speaker';speaker.textContent=(s.t===1?'♔ ':'♚ ')+who+' bot considers its move';
-  const step=document.createElement('div');step.className='watch-step-label';step.textContent=watchPhase==='consider'?'STEP 1 OF 2 · Compare the options':'STEP 2 OF 2 · The decision';
-  const h=document.createElement('h2');h.textContent=watchPhase==='consider'?who+' has '+candidates.length+' possible plans':who+' chooses '+moveLabel(s,chosen);
-  const intro=document.createElement('p');intro.textContent=watchPhase==='consider'?'Before any piece moves, compare these legal candidates. Tap one to see it on the board. Which would you choose?':'The bot has selected its move, but the piece has not moved yet. Here is its reasoning, alongside the alternatives.';
-  panel.append(speaker,step,h,intro);
-  const options=document.createElement('div');options.className='watch-alternatives';
-  for(const candidate of candidates){
-   const chosenNow=watchPhase==='reveal'&&key(candidate)===key(chosen);
-   const b=document.createElement('button');b.type='button';b.className='watch-alt'+(chosenNow?' chosen':'')+(watchPreview&&key(watchPreview.move)===key(candidate)?' active':'');
-   const name=document.createElement('strong');name.textContent=moveLabel(s,candidate)+' · '+sq(candidate[0])+' → '+sq(candidate[1]);
-   if(chosenNow){const tag=document.createElement('span');tag.className='watch-alt-tag';tag.textContent='✓ BOT’S CHOICE';b.appendChild(tag);}
-   const description=document.createElement('span');description.textContent=watchReason(s,candidate);
-   b.append(name,description);b.setAttribute('aria-label','Preview '+moveLabel(s,candidate));
-   b.onclick=()=>{pauseWatch();watchPreview={move:candidate,position:apply(s,candidate)};render();};options.appendChild(b);
-  }
-  panel.appendChild(options);
-  if(watchPhase==='reveal'){
-   const reason=document.createElement('div');reason.className='watch-reason';
-   const heading=document.createElement('strong');heading.textContent='Why '+who+' picked '+moveLabel(s,chosen);
-   const p=document.createElement('p');p.textContent=watchSelectionReason(s,chosen);
-   reason.append(heading,p);panel.appendChild(reason);
-  }
-  if(watchPreview){
-   const preview=document.createElement('div');preview.className='watch-preview';
-   const txt=document.createElement('span');txt.textContent='Previewing '+moveLabel(s,watchPreview.move)+'. This is only a possible future position; the actual board has not changed.';
-   const back=document.createElement('button');back.className='btn';back.type='button';back.textContent='Back to choices';back.onclick=()=>{watchPreview=null;render();};
-   preview.append(txt,back);panel.appendChild(preview);
-  }
+ const done=status().done||state.moves.length>=watchLimit,plan=done?null:watchCandidates();
+ if(!plan){const p=document.createElement('p');p.className='watch-why';p.textContent='Game complete. Restart to watch another.';panel.appendChild(p);return;}
+ const {s,chosen,candidates}=plan;
+ const legend=document.createElement('div');legend.className='watch-key';
+ legend.innerHTML='<span><i class="key-dot green"></i> Green = bot’s pick</span><span><i class="key-dot yellow"></i> Yellow = other options</span>';
+ panel.appendChild(legend);
+ const chips=document.createElement('div');chips.className='watch-chips';
+ const focused=candidates.find(m=>key(m)===watchFocusKey)||chosen;
+ for(const m of candidates){
+  const best=key(m)===key(chosen),selected=key(m)===key(focused);
+  const chip=document.createElement('button');chip.type='button';
+  chip.className='watch-chip '+(best?'best':'alt')+(selected?' focused':'');
+  chip.textContent=(best?'✓ ':'')+moveLabel(s,m);
+  chip.setAttribute('aria-label',(best?'Recommended ':'Alternative ')+moveLabel(s,m)+'. '+watchTinyReason(s,m));
+  chip.setAttribute('aria-pressed',String(selected));
+  chip.onclick=()=>{pauseWatch();watchFocusKey=key(m);render();};
+  chips.appendChild(chip);
  }
- const previous=watchRecord();
- if(previous){
-  const recap=document.createElement('div');recap.className='watch-recap';
-  const heading=document.createElement('strong');heading.textContent='LAST MOVE · '+(previous.s.t===1?'White':'Black')+' played '+previous.label;
-  const p=document.createElement('p');p.textContent=watchReason(previous.s,previous.m);
-  recap.append(heading,p);panel.appendChild(recap);
- }else if(!plan){const p=document.createElement('p');p.textContent='This game is complete. Restart to watch another demonstration.';panel.appendChild(p);}
- const foot=document.createElement('div');foot.className='watch-caption';foot.textContent='These are legal illustrative choices, not exhaustive analysis. The opening follows a teaching line, and later selections use a simple heuristic rather than a professional chess engine.';
- panel.appendChild(foot);
+ panel.appendChild(chips);
+ const reason=document.createElement('p');reason.className='watch-why';
+ const best=key(focused)===key(chosen);
+ reason.textContent=(best?'✓ Recommended':'◯ Alternative')+' · '+watchTinyReason(s,focused)+(best?' Teaching-bot preference.':' Tap another move to compare.');
+ panel.appendChild(reason);
 }
 function toFen(s){
  const rows=[];for(let r=0;r<8;r++){let out='',empty=0;for(let f=0;f<8;f++){const p=s.b[r*16+f];if(p==='.'){empty++;continue;}if(empty){out+=empty;empty=0;}out+=p;}if(empty)out+=empty;rows.push(out);}
@@ -620,6 +632,7 @@ function showPromotion(){const choices=el('promotionChoices');choices.replaceChi
 function renderBoard(){
  const board=el('board'),s=state.mode==='watch'&&watchPreview?watchPreview.position:current(),all=state.mode==='watch'?[]:legal(s),targets=all.filter(m=>m[0]===selected).map(m=>m[1]);board.replaceChildren();
  const latest=watchPreview?watchPreview.move:moves.at(-1);
+ const watchPlan=state.mode==='watch'&&!watchPreview&&state.moves.length<watchLimit?watchCandidates():null;
  for(let j=0;j<64;j++){
   const i=(j>>3)*16+(j&7),p=s.b[i],cell=document.createElement('button');cell.type='button';cell.className='sq '+(((i>>4)+(i&7))%2?'dark':'light');
   if(latest&&[latest[0],latest[1]].includes(i))cell.classList.add(watchPreview?'preview':'last');
@@ -627,12 +640,44 @@ function renderBoard(){
   if(targets.includes(i))cell.classList.add('capture');
   const piece=p==='.'?'empty':(side(p)===1?'white ':'black ')+pieceNames[p.toLowerCase()];
   cell.setAttribute('aria-label',sq(i)+': '+piece+(targets.includes(i)?', legal destination':''));
-  if(state.mode==='watch')cell.setAttribute('aria-disabled','true');cell.onclick=()=>moveSelected(i);
+  if(state.mode==='watch'){
+   const plan=watchPlan,target=plan?.candidates.find(m=>m[1]===i);
+   if(target){cell.setAttribute('aria-label',sq(i)+': '+piece+', option '+moveLabel(plan.s,target));cell.onclick=()=>{pauseWatch();watchFocusKey=key(target);render();};}
+   else {cell.setAttribute('aria-disabled','true');cell.onclick=()=>{};}
+  }else cell.onclick=()=>moveSelected(i);
   if(p!=='.'){const span=document.createElement('span');span.className='piece '+(side(p)===1?'white':'black');span.textContent=glyph[p];span.setAttribute('aria-hidden','true');cell.appendChild(span);}
   if(targets.includes(i)){const dot=document.createElement('span');dot.className='dot';dot.setAttribute('aria-hidden','true');cell.appendChild(dot);}
   if((i&7)===0){const rank=document.createElement('span');rank.className='coord rank';rank.textContent=String(8-(i>>4));cell.appendChild(rank);}
   if((i>>4)===7){const file=document.createElement('span');file.className='coord file';file.textContent=sq(i)[0];cell.appendChild(file);}
   board.appendChild(cell);
+ }
+ if(watchPlan&&!status().done){
+  const plan=watchPlan;
+  if(plan){
+   const ns='http://www.w3.org/2000/svg';
+   const svg=document.createElementNS(ns,'svg');svg.setAttribute('class','watch-arrows');
+   svg.setAttribute('viewBox','0 0 800 800');svg.setAttribute('preserveAspectRatio','none');
+   svg.setAttribute('role','img');svg.setAttribute('aria-label','Green arrow marks the bot’s recommended move. Up to three yellow arrows mark other legal moves.');
+   const defs=document.createElementNS(ns,'defs');
+   for(const [id,color] of [['watchYellow','#eabb30'],['watchGreen','#10a05b']]){
+    const mark=document.createElementNS(ns,'marker');
+    for(const [name,val] of [['id',id],['markerWidth','4'],['markerHeight','4'],['refX','3.3'],['refY','2'],['orient','auto'],['viewBox','0 0 4 4']])mark.setAttribute(name,val);
+    const triangle=document.createElementNS(ns,'path');triangle.setAttribute('d','M 0 0 L 4 2 L 0 4 Z');triangle.setAttribute('fill',color);
+    mark.appendChild(triangle);defs.appendChild(mark);
+   }
+   svg.appendChild(defs);
+   const draw=(m,best)=>{
+    const active=key(m)===watchFocusKey;
+    const x1=(m[0]&7)*100+50,y1=(m[0]>>4)*100+50,x2=(m[1]&7)*100+50,y2=(m[1]>>4)*100+50;
+    const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len;
+    const d=`M ${x1+ux*19} ${y1+uy*19} L ${x2-ux*25} ${y2-uy*25}`;
+    const outer=document.createElementNS(ns,'path');outer.setAttribute('d',d);outer.setAttribute('fill','none');outer.setAttribute('stroke','#20392d');outer.setAttribute('stroke-width',best?'26':'21');outer.setAttribute('stroke-linecap','round');outer.setAttribute('opacity',best?'.55':'.4');svg.appendChild(outer);
+    const path=document.createElementNS(ns,'path');path.setAttribute('d',d);path.setAttribute('fill','none');path.setAttribute('stroke',best?'#10a05b':'#eabb30');path.setAttribute('stroke-width',best?'17':'13');path.setAttribute('stroke-linecap','round');path.setAttribute('marker-end',best?'url(#watchGreen)':'url(#watchYellow)');path.setAttribute('opacity',watchFocusKey&&!active&&!best?'.48':'1');svg.appendChild(path);
+    if(active){const ring=document.createElementNS(ns,'circle');ring.setAttribute('cx',x2);ring.setAttribute('cy',y2);ring.setAttribute('r','33');ring.setAttribute('fill','none');ring.setAttribute('stroke',best?'#10a05b':'#eabb30');ring.setAttribute('stroke-width','9');svg.appendChild(ring);}
+   };
+   plan.others.forEach(m=>draw(m,false));draw(plan.chosen,true);
+   board.appendChild(svg);
+  }
  }
 }
 function renderSidebar(){
@@ -648,8 +693,8 @@ function renderSidebar(){
   const note=document.createElement('p');note.className='small-note';note.textContent='Play the suggested White moves. Coach makes the Black replies. Use Next guided move to see the idea in action.';sidebar.appendChild(note);
  }else if(state.mode==='watch'){
   const title=document.createElement('div');title.className='section-header';title.textContent='Watch & Learn';sidebar.appendChild(title);
-  const description=document.createElement('p');description.textContent='Before each turn, compare three legal options. Reveal what the bot chooses and why, then watch that move play out.';sidebar.appendChild(description);
-  const note=document.createElement('p');note.className='small-note';note.textContent='Use Reveal choice, then Play choice. Auto-play shows both stages before each piece moves. The bots use beginner-level ideas, not expert analysis.';sidebar.appendChild(note);
+  const description=document.createElement('p');description.textContent='Watch four options drawn on the board: green is recommended, yellow shows alternatives.';sidebar.appendChild(description);
+  const note=document.createElement('p');note.className='small-note';note.textContent='Tap a move label to compare its one-line reason, then Play green move or Auto-play. These are teaching suggestions, not chess-engine rankings.';sidebar.appendChild(note);
  }else{
   const title=document.createElement('div');title.className='section-header';title.textContent='Practice game';sidebar.appendChild(title);
   const t=document.createElement('p');t.style.margin='0 0 12px';t.textContent='You play White against a beginner-friendly computer opponent. Explore, experiment and undo mistakes.';sidebar.appendChild(t);
@@ -667,11 +712,13 @@ function render(){
  labels.forEach(label=>{const x=document.createElement('span');x.className='move-token';x.textContent=label;history.appendChild(x);});history.scrollTop=history.scrollHeight;
  el('undoBtn').disabled=!state.moves.length||botPending||state.mode==='watch';el('undoBtn').hidden=state.mode==='watch';
  el('watchControls').hidden=state.mode!=='watch';
+ document.querySelector('.actions').hidden=state.mode==='watch';
+ document.querySelector('.callout').hidden=state.mode==='watch';
  el('watchPlayBtn').textContent=watchPlaying?'Ⅱ Pause':'▶ Auto-play';
  el('watchPlayBtn').disabled=!!watchPreview||(state.moves.length>=watchLimit||st.done)&&!watchPlaying;
  el('watchPrevBtn').disabled=!state.moves.length;
  el('watchStepBtn').disabled=!!watchPreview||st.done||state.moves.length>=watchLimit;
- el('watchStepBtn').textContent=watchPhase==='consider'?'Reveal choice →':'Play choice →';
+ el('watchStepBtn').textContent='Play green move →';
  el('watchSpeed').value=String(state.watchSpeed||7000);
  el('copyMovesBtn').disabled=!state.moves.length;
  el('nextBtn').style.display=state.mode==='lesson'?'':'none';
@@ -695,6 +742,7 @@ document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('clic
 el('watchPlayBtn').addEventListener('click',()=>{if(state.mode!=='watch'||watchPreview)return;if(watchPlaying)pauseWatch();else{if(status().done||state.moves.length>=watchLimit)return;watchPlaying=true;scheduleWatch();}render();});
 el('watchPrevBtn').addEventListener('click',watchPrevious);
 el('watchStepBtn').addEventListener('click',()=>{if(state.mode!=='watch')return;pauseWatch();watchStep();});
+el('watchRestartBtn').addEventListener('click',resetBoard);
 el('watchSpeed').addEventListener('change',e=>{state.watchSpeed=Number(e.target.value);save();if(watchPlaying){clearTimeout(watchTimer);watchTimer=null;scheduleWatch();}render();});
 el('undoBtn').addEventListener('click',()=>{if(!state.moves.length||botPending)return;const n=state.mode==='practice'?Math.min(state.moves.length,current().t===1?2:1):Math.min(state.moves.length,current().t===1?2:1);state.moves.splice(-n);labels.splice(-n);moves.splice(-n);positions.splice(-n);state.claimed='';state.lastComment='Undid the last turn. Try a different idea.';selected=-1;error='';save();render();});
 el('restartBtn').addEventListener('click',resetBoard);
