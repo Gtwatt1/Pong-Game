@@ -392,7 +392,7 @@ function chooseBlack(s){
 // The bots use a simple deterministic heuristic, not an external chess engine.
 const watchOpening=['e2e4','e7e5','g1f3','b8c6','f1c4','f8c5','c2c3','g8f6','d2d3','d7d6','e1g1','e8g8'];
 {let s=start;for(const uci of watchOpening){const m=legal(s).find(x=>key(x)===uci);if(!m)throw Error('Invalid watch opening move: '+uci);s=apply(s,m);}}
-const watchLimit=80;
+// Watch mode continues until the chess rules declare a real ending.
 const pieceValues={p:100,n:320,b:330,r:500,q:900,k:0};
 function moveMerit(s,m){
  const after=apply(s,m),reply=legal(after);
@@ -453,11 +453,11 @@ function watchSelectionReason(s,m){
 function pauseWatch(){watchPlaying=false;if(watchTimer!==null){clearTimeout(watchTimer);watchTimer=null;}}
 function scheduleWatch(){
  if(!watchPlaying||state.mode!=='watch'||watchReplay)return;
- if(status().done||state.claimed||state.moves.length>=watchLimit){pauseWatch();render();return;}
+ if(status().done||state.claimed){pauseWatch();render();return;}
  watchTimer=setTimeout(()=>{watchTimer=null;if(!watchPlaying||state.mode!=='watch'||watchReplay)return;watchStep();scheduleWatch();},Math.max(1000,state.watchSpeed||7000));
 }
 function watchStep(){
- if(state.mode!=='watch'||watchReplay||status().done||state.moves.length>=watchLimit)return;
+ if(state.mode!=='watch'||watchReplay||status().done)return;
  const m=watchBotMove();if(!m)return;
  watchPhase='consider';watchFocusKey='';watchExpanded=false;watchReplay=0;watchThreatCache.id='';play(m,true);
 }
@@ -573,8 +573,8 @@ function watchRiskDemo(step){watchReplay=step;watchExpanded=true;pauseWatch();re
 function showWatchAnalysis(){
  const panel=el('watchAnalysis');panel.replaceChildren();
  panel.hidden=state.mode!=='watch';if(state.mode!=='watch')return;
- const done=status().done||state.moves.length>=watchLimit,plan=done?null:watchCandidates();
- if(!plan){const p=document.createElement('p');p.className='watch-why';p.textContent='Game complete. Restart to watch another.';panel.appendChild(p);return;}
+ const done=status().done,plan=done?null:watchCandidates();
+ if(!plan){const p=document.createElement('p');p.className='watch-why';p.textContent=status().text+' Restart to watch another game.';panel.appendChild(p);return;}
  const {s,chosen,candidates}=plan,{focused,preferred,risk}=watchFocus(plan);
  const legend=document.createElement('div');legend.className='watch-key';
  legend.innerHTML='<span><i class="key-dot green"></i> Green = bot’s pick</span><span><i class="key-dot yellow"></i> Yellow = other options</span>'+(risk?'<span><i class="key-dot red"></i> Red = opponent reply</span>':'');
@@ -748,7 +748,7 @@ function moveSelected(i){
 }
 function showPromotion(){const choices=el('promotionChoices');choices.replaceChildren();for(const m of pending){const b=document.createElement('button');b.type='button';b.textContent=glyph[m[2].toUpperCase()];b.setAttribute('aria-label','Promote to '+pieceNames[m[2]]);b.onclick=()=>{el('promotionModal').hidden=true;play(m);};choices.appendChild(b);}el('promotionModal').hidden=false;}
 function renderBoard(){
- const board=el('board'),watchPlan=state.mode==='watch'&&state.moves.length<watchLimit&&!status().done?watchCandidates():null;
+ const board=el('board'),watchPlan=state.mode==='watch'&&!status().done?watchCandidates():null;
  const focus=watchFocus(watchPlan),risk=focus?.risk;
  const s=watchReplay&&risk?(watchReplay===1?risk.after:risk.punished):current();
  const all=state.mode==='watch'?[]:legal(s),targets=all.filter(m=>m[0]===selected).map(m=>m[1]);board.replaceChildren();
@@ -834,7 +834,7 @@ function render(){
  document.body.classList.toggle('watch-mode',state.mode==='watch');
  const s=current(),st=status();renderBoard();renderSidebar();showWatchAnalysis();
  document.querySelectorAll('[data-mode]').forEach(b=>{const active=b.dataset.mode===state.mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
- el('turnStatus').textContent=state.claimed||st.done?state.claimed||'Game over':state.mode==='watch'?(watchReplay?'Viewing a possible sequence':(s.t===1?'White':'Black')+(watchPhase==='consider'?' considers options':' has chosen')):botPending?'Coach thinking…':st.text;
+ el('turnStatus').textContent=state.claimed||st.done?state.claimed||st.text:state.mode==='watch'?(watchReplay?'Viewing a possible sequence':(s.t===1?'White':'Black')+(watchPhase==='consider'?' considers options':' has chosen')):botPending?'Coach thinking…':st.text;
  el('moveCount').textContent='Move '+s.full;el('topPlayerName').textContent=state.mode==='watch'?'Black bot':'Coach';el('bottomPlayerName').textContent=state.mode==='watch'?'White bot':'You';el('bottomPlayerSub').textContent='· White';el('opponentSub').textContent=state.mode==='lesson'?'· guided moves':state.mode==='watch'?'· explains each move':'· practice bot';
  const history=el('history');history.replaceChildren();
  if(!labels.length){const empty=document.createElement('span');empty.className='empty-moves';empty.textContent=state.mode==='watch'?'The first move has not been played yet.':'No moves yet. Make your first move!';history.appendChild(empty);}
@@ -844,9 +844,9 @@ function render(){
  document.querySelector('.actions').hidden=state.mode==='watch';
  document.querySelector('.callout').hidden=state.mode==='watch';
  el('watchPlayBtn').textContent=watchPlaying?'Ⅱ Pause':'▶ Auto-play';
- el('watchPlayBtn').disabled=!!watchReplay||(state.moves.length>=watchLimit||st.done)&&!watchPlaying;
+ el('watchPlayBtn').disabled=!!watchReplay||st.done&&!watchPlaying;
  el('watchPrevBtn').disabled=!state.moves.length;
- el('watchStepBtn').disabled=!!watchReplay||st.done||state.moves.length>=watchLimit;
+ el('watchStepBtn').disabled=!!watchReplay||st.done;
  el('watchStepBtn').textContent='Play green move →';
  el('watchSpeed').value=String(state.watchSpeed||7000);
  el('copyMovesBtn').disabled=!state.moves.length;
@@ -854,7 +854,7 @@ function render(){
  el('nextBtn').disabled=!!st.done||!!state.claimed||botPending||state.moves.length>=lesson().moves.length;
  el('nextBtn').textContent=state.mode==='lesson'&&s.t===1?'Show next move →':'Show response →';
  const title=el('calloutTitle'),body=el('calloutBody');
- if(state.mode==='watch'){title.textContent=watchPreview?'Previewing a candidate':st.done?'Game finished':state.moves.length>=watchLimit?'Demonstration complete':watchPhase==='consider'?'Before the move · Compare':'Before the move · Decision';body.textContent=watchPreview?'The board shows a possible move, not the actual game. Tap Back to choices below.':st.done?st.text:state.moves.length>=watchLimit?'You’ve watched 80 half-moves. Restart to see the game again.':watchPhase==='consider'?'Read three legal options below and decide what you would play. Then tap Reveal choice.':'See which candidate the bot chose and why below. The position is unchanged until you tap Play choice.';}
+ if(state.mode==='watch'){title.textContent=watchPreview?'Previewing a candidate':st.done?'Game finished':watchPhase==='consider'?'Before the move · Compare':'Before the move · Decision';body.textContent=watchPreview?'The board shows a possible move, not the actual game. Tap Back to choices below.':st.done?st.text:watchPhase==='consider'?'Read three legal options below and decide what you would play. Then tap Reveal choice.':'See which candidate the bot chose and why below. The position is unchanged until you tap Play choice.';}
  else if(state.claimed||st.done){title.textContent='Game finished';body.textContent=state.claimed||st.text;}
  else if(state.mode==='lesson'&&state.moves.length===lesson().moves.length){title.textContent='Lesson complete!';body.textContent='Great work. You finished '+lesson().title+'. Choose the next lesson in the Learn panel, or try a practice game.';}
  else if(botPending){title.textContent='Coach is playing';body.textContent=state.lastComment||'Watch how Black responds.';}
@@ -868,7 +868,7 @@ function render(){
 }
 function modeChange(mode){if(state.mode===mode)return;pauseWatch();state.mode=mode;resetBoard();}
 document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>modeChange(btn.dataset.mode)));
-el('watchPlayBtn').addEventListener('click',()=>{if(state.mode!=='watch'||watchReplay)return;if(watchPlaying)pauseWatch();else{if(status().done||state.moves.length>=watchLimit)return;watchPlaying=true;scheduleWatch();}render();});
+el('watchPlayBtn').addEventListener('click',()=>{if(state.mode!=='watch'||watchReplay)return;if(watchPlaying)pauseWatch();else{if(status().done)return;watchPlaying=true;scheduleWatch();}render();});
 el('watchPrevBtn').addEventListener('click',watchPrevious);
 el('watchStepBtn').addEventListener('click',()=>{if(state.mode!=='watch')return;pauseWatch();watchStep();});
 el('watchRestartBtn').addEventListener('click',resetBoard);
