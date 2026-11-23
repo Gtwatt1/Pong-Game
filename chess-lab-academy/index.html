@@ -136,7 +136,7 @@ const lessonDefs=[
 ];
 lessonDefs.forEach(l=>{const s=fromLine(l.line);l.position=s;for(const u of l.accept)if(!legal(s).some(m=>key(m)===u))throw Error('Invalid lesson move '+u);});
 let saved={};try{saved=JSON.parse(localStorage.getItem('chessLabAcademyV1')||'{}')||{};}catch{}
-const app={mode:['learn','study','practice'].includes(saved.mode)?saved.mode:'learn',lesson:Math.max(0,Math.min(3,Number(saved.lesson)||0)),completed:Array.isArray(saved.completed)?saved.completed.filter(x=>Number.isInteger(x)&&x>=0&&x<4):[],step:Math.max(0,Math.min(operaUci.length,Number(saved.step)||0)),strength:Number.isInteger(saved.strength)?saved.strength:5,selected:-1,answer:null,answeredAt:-1,preview:null,practice:[start],pracMoves:[],botBusy:false,engineReady:false,engineError:'',engineAnalysis:[],analysisFen:'',analysisLoading:false,turnMessage:'',expanded:false,nonce:0};
+const app={mode:['learn','study','practice'].includes(saved.mode)?saved.mode:'learn',lesson:Math.max(0,Math.min(3,Number(saved.lesson)||0)),completed:Array.isArray(saved.completed)?saved.completed.filter(x=>Number.isInteger(x)&&x>=0&&x<4):[],step:Math.max(0,Math.min(operaUci.length,Number(saved.step)||0)),strength:Number.isInteger(saved.strength)?saved.strength:5,selected:-1,answer:null,answeredAt:-1,preview:null,studyLoading:false,practice:[start],pracMoves:[],botBusy:false,engineReady:false,engineError:'',engineAnalysis:[],analysisFen:'',analysisLoading:false,turnMessage:'',expanded:false,nonce:0};
 try{if(Array.isArray(saved.practiceMoves)){for(const u of saved.practiceMoves.slice(0,400)){const s=app.practice.at(-1),m=legal(s).find(x=>key(x)===u);if(!m)break;app.pracMoves.push(u);app.practice.push(apply(s,m));}}}catch{}
 function save(){try{localStorage.setItem('chessLabAcademyV1',JSON.stringify({mode:app.mode,lesson:app.lesson,completed:app.completed,step:app.step,strength:app.strength,practiceMoves:app.pracMoves}));}catch{}}
 function current(){return app.mode==='learn'?lessonDefs[app.lesson].position:app.mode==='study'?opera[app.step]:app.practice.at(-1);}
@@ -145,7 +145,12 @@ function renderNote(){
  if(app.mode==='learn'){const l=lessonDefs[app.lesson];if(app.answer){note(app.answer.good?'✓ '+l.short:'Not quite. Try a different move.',app.answer.good?'':'warning',app.expanded?l.details:'Tap here for the full explanation.');}
  else note(l.prompt,'','Tap a piece, then a legal destination.');}
  if(app.mode==='study'){
-  if(app.preview){note(app.preview.good?'✓ That is the move Morphy played.':'Morphy played '+operaSAN[app.step]+'.','',app.preview.good?keyMoments[app.step]?.[1]:'A different move can still be playable. Compare it with Morphy’s idea.');}
+  if(app.preview){
+   const p=app.preview;
+   const short=p.good?'✓ You found Morphy’s move.':p.reply?'Stockfish would reply '+p.replyLabel+'.':p.checking?'Checking the opponent’s reply…':'A different, legal move.';
+   const extended=p.good?keyMoments[app.step]?.[1]:p.reply?'After your move, the engine chooses '+p.replyLabel+'. Tap Show reply to see that continuation in red. This demonstrates one engine reply, not proof that your move loses.':'Your move differs from the historical game. It might still be playable.';
+   note(short,p.good?'':p.reply?'warning':'',app.expanded?extended:'Tap this line for more explanation.');
+  }
   else if(app.step>=operaUci.length){note('Checkmate — White won.','', 'Morphy finished in 17 moves.');}
   else if(keyMoments[app.step]&&app.answeredAt!==app.step){note('Your turn: '+keyMoments[app.step][0],'','Choose a move on the board before revealing Morphy’s move.');}
   else {const last=app.step?operaNames[app.step-1]:null;note(last?'Last move: '+last:'Paul Morphy vs Brunswick & Isouard','',last?(keyMoments[app.step-1]?.[1]||'Tap Next to follow the real game.'):'Paris, 1858 · Study a real historic game.');}
@@ -214,7 +219,16 @@ function playLocalMove(m){
   if(good&&!app.completed.includes(app.lesson)){app.completed.push(app.lesson);save();}
  }else if(app.mode==='study'){
   const good=key(m)===operaUci[app.step];
-  app.preview={uci:key(m),good};app.answeredAt=app.step;app.expanded=false;
+  app.preview={uci:key(m),good,reply:null,checking:!good&&app.engineReady,showReply:false};app.answeredAt=app.step;app.expanded=false;
+  if(!good&&app.engineReady){
+   const preview=app.preview,after=apply(s,m),step=app.step;app.studyLoading=true;
+   engineSearch(after,{ms:900,multi:1,skill:20}).then(result=>{
+    if(app.mode!=='study'||app.step!==step||app.preview!==preview)return;
+    const response=legal(after).find(x=>key(x)===result.uci);
+    if(response){preview.reply=key(response);preview.replyLabel=moveLabel(after,response);}
+    preview.checking=false;app.studyLoading=false;render();
+   }).catch(()=>{if(app.preview===preview){preview.checking=false;app.studyLoading=false;render();}});
+  }
  }else if(app.mode==='practice'){
   if(!app.engineReady||app.botBusy||s.t!==1)return;
   const userUci=key(m),version=++app.nonce;app.botBusy=true;app.turnMessage='';
@@ -243,21 +257,21 @@ function clickedSquare(i){
 function renderArrows(board,arr){
  if(!arr?.length)return;
  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('class','arrows');svg.setAttribute('viewBox','0 0 800 800');svg.setAttribute('aria-hidden','true');
- const defs=document.createElementNS(ns,'defs');for(const [name,color]of [['g','#15954a'],['y','#e0ad22']]){
+ const defs=document.createElementNS(ns,'defs');for(const [name,color]of [['g','#15954a'],['y','#e0ad22'],['r','#d64642']]){
   const mark=document.createElementNS(ns,'marker');mark.setAttribute('id','arrow-'+name);mark.setAttribute('markerWidth','4');mark.setAttribute('markerHeight','4');mark.setAttribute('refX','3.4');mark.setAttribute('refY','2');mark.setAttribute('orient','auto');mark.setAttribute('viewBox','0 0 4 4');
   const triangle=document.createElementNS(ns,'path');triangle.setAttribute('d','M0 0 L4 2 L0 4 Z');triangle.setAttribute('fill',color);mark.appendChild(triangle);defs.appendChild(mark);}
  svg.appendChild(defs);
  arr.forEach((item,n)=>{const f=index(item.uci.slice(0,2)),t=index(item.uci.slice(2,4)),x1=(f&7)*100+50,y1=(f>>4)*100+50,x2=(t&7)*100+50,y2=(t>>4)*100+50;
-  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,c=item.best?'#15954a':'#e0ad22',path=document.createElementNS(ns,'path');
-  path.setAttribute('d','M '+(x1+dx/len*20)+' '+(y1+dy/len*20)+' L '+(x2-dx/len*23)+' '+(y2-dy/len*23));path.setAttribute('stroke',c);path.setAttribute('stroke-width',item.best?'12':'8');
-  path.setAttribute('stroke-linecap','round');path.setAttribute('fill','none');path.setAttribute('opacity',item.best?'.92':'.72');path.setAttribute('marker-end','url(#arrow-'+(item.best?'g':'y')+')');svg.appendChild(path);
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1,c=item.danger?'#d64642':item.best?'#15954a':'#e0ad22',path=document.createElementNS(ns,'path');
+  path.setAttribute('d','M '+(x1+dx/len*20)+' '+(y1+dy/len*20)+' L '+(x2-dx/len*23)+' '+(y2-dy/len*23));path.setAttribute('stroke',c);path.setAttribute('stroke-width',item.danger?'10':item.best?'12':'8');
+  path.setAttribute('stroke-linecap','round');path.setAttribute('fill','none');path.setAttribute('opacity',item.danger?'.92':item.best?'.92':'.72');path.setAttribute('marker-end','url(#arrow-'+(item.danger?'r':item.best?'g':'y')+')');svg.appendChild(path);
  });
  $id('boardWrap').appendChild(svg);
 }
 function renderBoard(){
  const b=$id('board'),wrap=$id('boardWrap');wrap.querySelector('.arrows')?.remove();b.replaceChildren();
  let s=current(),recent=null;
- if(app.mode==='study'){if(app.preview){const m=legal(s).find(x=>key(x)===app.preview.uci);if(m){recent=m;s=apply(s,m);}}else if(app.step>0)recent=legal(opera[app.step-1]).find(x=>key(x)===operaUci[app.step-1]);}
+ if(app.mode==='study'){if(app.preview){const m=legal(s).find(x=>key(x)===app.preview.uci);if(m){recent=m;s=apply(s,m);if(app.preview.showReply&&app.preview.reply){const resp=legal(s).find(x=>key(x)===app.preview.reply);if(resp){recent=resp;s=apply(s,resp);}}}}else if(app.step>0)recent=legal(opera[app.step-1]).find(x=>key(x)===operaUci[app.step-1]);}
  if(app.mode==='practice'&&app.pracMoves.length>0){const p=app.practice[app.practice.length-2];recent=legal(p).find(x=>key(x)===app.pracMoves.at(-1));}
  const active=app.mode==='learn'?!app.answer?.good:app.mode==='study'?!!keyMoments[app.step]&&!app.preview&&app.answeredAt!==app.step:app.engineReady&&!app.botBusy&&s.t===1;
  const targets=active?legal(s).filter(m=>m[0]===app.selected).map(m=>m[1]):[];
@@ -276,6 +290,7 @@ function renderBoard(){
  if(app.mode==='practice'&&app.analysisFen===toFen(s)&&app.engineAnalysis.length)
   app.engineAnalysis.slice(0,3).forEach((x,i)=>{if(legal(s).some(m=>key(m)===x.uci))arrows.push({uci:x.uci,best:i===0});});
  if(app.mode==='learn'&&app.answer?.good)arrows.push({uci:app.answer.uci,best:true});
+ if(app.mode==='study'&&app.preview?.reply&&!app.preview.showReply)arrows.push({uci:app.preview.reply,danger:true});
  renderArrows(b,arrows);
  $id('turnLabel').textContent=gameStatus(app.mode==='practice'?app.practice:app.mode==='study'?opera.slice(0,app.step+1):[s]).done?'Game over':s.t===1?'White to move':'Black to move';
  $id('moveLabel').textContent='Move '+s.full;
@@ -288,6 +303,9 @@ function renderButtons(){
   root.appendChild(button('Retry',()=>{app.answer=null;app.selected=-1;app.expanded=false;render();}));
  }else if(app.mode==='study'){
   root.appendChild(button('← Back',()=>{if(app.step){app.step--;app.preview=null;app.answeredAt=-1;app.selected=-1;save();render();}},false));
+  if(app.preview?.reply){
+   root.appendChild(button(app.preview.showReply?'← Back to your move':'Show red reply →',()=>{app.preview.showReply=!app.preview.showReply;app.selected=-1;render();}));
+  }
   root.appendChild(button(app.step>=33?'Replay game':app.preview?'Show game move →':keyMoments[app.step]&&app.answeredAt!==app.step?'Reveal move →':'Next move →',()=>{
    if(app.step>=33){app.step=0;app.preview=null;app.answeredAt=-1;}else{app.step++;app.preview=null;app.answeredAt=-1;}
    app.selected=-1;save();render();
